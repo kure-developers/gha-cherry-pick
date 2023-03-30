@@ -137,9 +137,9 @@ git push upstream upstream/$TEMP_BRANCH:$TEMP_BRANCH &> /tmp/error.log || (
 	exit 1
 )
 
-gh pr create --base $TARGET_BRANCH --head $TEMP_BRANCH --title "$PR_TITLE" --body "$PR_BODY" &> /tmp/error.log || {
+cherry_pr_url=$(gh pr create --base $TARGET_BRANCH --head $TEMP_BRANCH --title "$PR_TITLE" --body "$PR_BODY" 2> /tmp/error.log || {
 	gh pr comment $PR_NUMBER --body "‼️ Error during PR creation.<br/><br/>$(cat /tmp/error.log)"
 	exit 1
-}
+})
 
-gh pr comment $PR_NUMBER --body "cherry-pick action finished successfully 🎉!<br/>Action run: https://github.com/$REPO_NAME/actions/runs/$GITHUB_RUN_ID"
+gh pr comment $PR_NUMBER --body "cherry-pick action finished successfully 🎉!<br/>New PR created at: $cherry_pr_url <br/>Action run: https://github.com/$REPO_NAME/actions/runs/$GITHUB_RUN_ID"
