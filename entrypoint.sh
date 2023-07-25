@@ -45,7 +45,7 @@ commits=""
 
 for ((i = 0 ; i < $MAX_RETRIES ; i++)); do
 	pr_resp=$(gh api "${URI}/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
-	commits=$(gh api "${URI}/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits")
+	commits=$(gh api "${URI}/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits?per_page=200")
 	MERGED=$(echo "$pr_resp" | jq -r .merged)
 	MERGE_COMMIT=$(echo "$pr_resp" | jq -r .merge_commit_sha)
 	if [[ "$MERGED" == "null" ]]; then
