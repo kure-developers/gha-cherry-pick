@@ -42,10 +42,12 @@ MERGED=""
 MERGE_COMMIT=""
 pr_resp=""
 commits=""
+reviewers=""
 
 for ((i = 0 ; i < $MAX_RETRIES ; i++)); do
 	pr_resp=$(gh api "${URI}/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
 	commits=$(gh api "${URI}/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits?per_page=200")
+ 	reviewers=$(echo "$pr_resp" | jq -r .requested_reviewers)
 	MERGED=$(echo "$pr_resp" | jq -r .merged)
 	MERGE_COMMIT=$(echo "$pr_resp" | jq -r .merge_commit_sha)
 	if [[ "$MERGED" == "null" ]]; then
@@ -60,6 +62,10 @@ done
 # get all commit shas except merge commits
 COMMIT_SHA_VALUES=$(echo "$commits" | jq -r '.[] | select(.commit.message | contains("Merge") | not) | .sha')
 echo $COMMIT_SHA_VALUES
+
+#get requested reviewer names from the PR
+PR_REVIEWERS=$(echo "$reviewers" | jq -r '[.[] | .login] | join(",")')
+echo "Reviewers: $PR_REVIEWERS"
 
 # See https://github.com/actions/checkout/issues/766 for motivation.
 git config --global --add safe.directory /github/workspace
@@ -137,9 +143,16 @@ git push upstream upstream/$TEMP_BRANCH:$TEMP_BRANCH &> /tmp/error.log || (
 	exit 1
 )
 
-cherry_pr_url=$(gh pr create --base $TARGET_BRANCH --head $TEMP_BRANCH --title "$PR_TITLE" --body "$PR_BODY" 2> /tmp/error.log || {
-	gh pr comment $PR_NUMBER --body "‼️ Error during PR creation.<br/><br/>$(cat /tmp/error.log)"
-	exit 1
-})
+if [ -z "$PR_NUMBER" ] || [[ "$PR_NUMBER" == "null" ]]; then
+	cherry_pr_url=$(gh pr create --base $TARGET_BRANCH --head $TEMP_BRANCH --title "$PR_TITLE" --body "$PR_BODY" 2> /tmp/error.log || {
+		gh pr comment $PR_NUMBER --body "‼️ Error during PR creation.<br/><br/>$(cat /tmp/error.log)"
+		exit 1
+	})
+else
+	cherry_pr_url=$(gh pr create --base $TARGET_BRANCH --head $TEMP_BRANCH --title "$PR_TITLE" --body "$PR_BODY" --reviewer "$PR_REVIEWERS" 2> /tmp/error.log || {
+		gh pr comment $PR_NUMBER --body "‼️ Error during PR creation.<br/><br/>$(cat /tmp/error.log)"
+		exit 1
+	})
+fi
 
 gh pr comment $PR_NUMBER --body "cherry-pick action finished successfully 🎉!<br/>New PR created at: $cherry_pr_url <br/>Action run: https://github.com/$REPO_NAME/actions/runs/$GITHUB_RUN_ID"
