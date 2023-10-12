@@ -47,7 +47,7 @@ reviewers=""
 for ((i = 0 ; i < $MAX_RETRIES ; i++)); do
 	pr_resp=$(gh api "${URI}/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
 	commits=$(gh api "${URI}/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits?per_page=200")
- 	reviewers=$(echo "$pr_resp" | jq -r .requested_reviewers)
+	reviewers=$(gh api "${URI}/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews")
 	MERGED=$(echo "$pr_resp" | jq -r .merged)
 	MERGE_COMMIT=$(echo "$pr_resp" | jq -r .merge_commit_sha)
 	if [[ "$MERGED" == "null" ]]; then
@@ -64,7 +64,7 @@ COMMIT_SHA_VALUES=$(echo "$commits" | jq -r '.[] | select(.commit.message | cont
 echo $COMMIT_SHA_VALUES
 
 #get requested reviewer names from the PR
-PR_REVIEWERS=$(echo "$reviewers" | jq -r '[.[] | .login] | join(",")')
+PR_REVIEWERS=$(echo "$reviewers" | jq -r 'map(select(.state == "APPROVED" or .state == "CHANGES_REQUESTED") | .user.login) | unique | join(",")')
 echo "Reviewers: $PR_REVIEWERS"
 
 # See https://github.com/actions/checkout/issues/766 for motivation.
