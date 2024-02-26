@@ -150,16 +150,36 @@ git push upstream upstream/$TEMP_BRANCH:$TEMP_BRANCH &> /tmp/error.log || (
 	exit 1
 )
 
-if [ -z "$PR_NUMBER" ] || [[ "$PR_NUMBER" == "null" ]]; then
-	cherry_pr_url=$(gh pr create --base $TARGET_BRANCH --head $TEMP_BRANCH --title "$PR_TITLE" --body "$BODY" 2> /tmp/error.log || {
-		gh pr comment $PR_NUMBER --body "‼️ Error during PR creation.<br/><br/>$(cat /tmp/error.log)"
-		exit 1
+ERROR_LOG="/tmp/error.log"
+
+if [ -z "$PR_REVIEWERS" ] || [[ "$PR_REVIEWERS" == "null" ]]; then
+	cherry_pr_url=$(gh pr create --base $TARGET_BRANCH --head $TEMP_BRANCH --title "$PR_TITLE" --body "$BODY" --draft 2> "$ERROR_LOG" || {
+		if grep -q "Draft pull requests are not supported" "$ERROR_LOG"; then
+			second_cherry_pr_url=$(gh pr create --base $TARGET_BRANCH --head $TEMP_BRANCH --title "$PR_TITLE" --body "$BODY" 2> "$ERROR_LOG" || {
+				gh pr comment $PR_NUMBER --body "‼️ Error during PR creation.<br/><br/>$(cat "$ERROR_LOG")"
+				exit 1
+			})
+      			echo "$second_cherry_pr_url"
+		else
+			gh pr comment $PR_NUMBER --body "‼️ Error during PR creation.<br/><br/>$(cat "$ERROR_LOG")"
+			exit 1
+		fi
 	})
 else
-	cherry_pr_url=$(gh pr create --base $TARGET_BRANCH --head $TEMP_BRANCH --title "$PR_TITLE" --body "$BODY" --reviewer "$PR_REVIEWERS" 2> /tmp/error.log || {
-		gh pr comment $PR_NUMBER --body "‼️ Error during PR creation.<br/><br/>$(cat /tmp/error.log)"
-		exit 1
+	cherry_pr_url=$(gh pr create --base $TARGET_BRANCH --head $TEMP_BRANCH --title "$PR_TITLE" --body "$BODY" --reviewer "$PR_REVIEWERS" --draft 2> "$ERROR_LOG" || {
+	    if grep -q "Draft pull requests are not supported" "$ERROR_LOG"; then
+			second_cherry_pr_url=$(gh pr create --base $TARGET_BRANCH --head $TEMP_BRANCH --title "$PR_TITLE" --body "$BODY" --reviewer "$PR_REVIEWERS" 2> "$ERROR_LOG" || {
+				gh pr comment $PR_NUMBER --body "‼️ Error during PR creation.<br/><br/>$(cat "$ERROR_LOG")"
+				exit 1
+			})
+   			echo "$second_cherry_pr_url"
+	    else
+			gh pr comment $PR_NUMBER --body "‼️ Error during PR creation.<br/><br/>$(cat "$ERROR_LOG")"
+			exit 1
+	    fi
 	})
 fi
+
+echo $cherry_pr_url
 
 gh pr comment $PR_NUMBER --body "cherry-pick action finished successfully 🎉!<br/>New PR created at: $cherry_pr_url <br/>Action run: https://github.com/$REPO_NAME/actions/runs/$GITHUB_RUN_ID"
